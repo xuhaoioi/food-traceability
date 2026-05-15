@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>食品二维码溯源系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .header { background: white; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .header h1 { color: #1e293b; font-size: 24px; margin-bottom: 8px; }
+    .header p { color: #64748b; font-size: 14px; }
+    .card { background: white; margin-top: 16px; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .product-list { margin-top: 16px; }
+    .product-item { background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: transform 0.2s, box-shadow 0.2s; }
+    .product-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .product-name { font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+    .product-info { font-size: 13px; color: #64748b; line-height: 1.6; }
+    .btn { display: inline-block; background: linear-gradient(135deg, #0f766e 0%, #065f46 100%); color: white; padding: 10px 20px; border-radius: 25px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 12px; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .status { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; margin-left: 8px; }
+    .status.pass { background: #dcfce7; color: #166534; }
+    .status.fail { background: #fee2e2; color: #991b1b; }
+    .qrcode-section { margin-top: 20px; padding: 16px; background: #f8fafc; border-radius: 12px; }
+    .qrcode-title { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 12px; }
+    .qrcode-img { width: 160px; height: 160px; display: block; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 8px; }
+    .qrcode-link { font-size: 12px; color: #64748b; text-align: center; margin-top: 12px; word-break: break-all; }
+    .error { color: #dc2626; font-weight: 500; text-align: center; padding: 20px; }
+    .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .detail-title { flex: 1; }
+    .detail-title h2 { font-size: 22px; color: #1e293b; margin-bottom: 4px; }
+    .back-link { color: #0f766e; text-decoration: none; font-size: 14px; font-weight: 500; }
+    .section { margin-bottom: 20px; }
+    .section h3 { font-size: 16px; color: #0f766e; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #d1fae5; }
+    .info-row { display: flex; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .info-label { width: 100px; color: #64748b; font-size: 14px; }
+    .info-value { flex: 1; color: #1e293b; font-size: 14px; }
+    .timeline { list-style: none; padding-left: 20px; border-left: 2px solid #0f766e; }
+    .timeline li { position: relative; padding: 8px 0 8px 20px; color: #374151; font-size: 14px; }
+    .timeline li::before { content: ''; position: absolute; left: -7px; top: 12px; width: 12px; height: 12px; background: #0f766e; border-radius: 50%; }
+    .conclusion { background: #f0fdf4; border-left: 4px solid #0f766e; padding: 12px 16px; border-radius: 0 8px 8px 0; color: #166534; font-size: 14px; line-height: 1.6; }
+    .home-link { display: inline-flex; align-items: center; color: #0f766e; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 16px; }
+    .home-link svg { margin-right: 6px; width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🍎 食品二维码溯源系统</h1>
+      <p>扫码查看食品生产、检测与物流信息</p>
+    </div>
+    <div id="app" class="card">正在加载数据...</div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('id');
+    const app = document.getElementById('app');
+
+    async function loadProducts() {
+      const response = await fetch('products.json');
+      return await response.json();
+    }
+
+    async function showProductList(products) {
+      app.innerHTML = `
+        <h2 style="color: #1e293b; margin-bottom: 8px;">📦 产品列表</h2>
+        <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">点击"生成二维码"获取产品溯源二维码</p>
+        <div class="product-list">
+          ${products.map(product => `
+            <div class="product-item">
+              <div class="product-name">
+                ${product.name}
+                <span class="status ${product.testResult === '合格' ? 'pass' : 'fail'}">${product.testResult}</span>
+              </div>
+              <div class="product-info">
+                <p>产品编号：${product.id}</p>
+                <p>产地：${product.origin}</p>
+                <p>生产日期：${product.date}</p>
+              </div>
+              <div style="margin-top: 12px;">
+                <a href="?id=${product.id}" class="btn" style="margin-right: 8px;">查看详情</a>
+                <a href="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href.split('?')[0] + '?id=' + product.id)}" target="_blank" class="btn" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">生成二维码</a>
+              </div>
+              <div class="qrcode-section" style="display: none;" id="qrcode-${product.id}">
+                <div class="qrcode-title">📱 扫码溯源二维码</div>
+                <img class="qrcode-img" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href.split('?')[0] + '?id=' + product.id)}" alt="二维码">
+                <div class="qrcode-link">${window.location.href.split('?')[0]}?id=${product.id}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      products.forEach(product => {
+        const btn = document.querySelector(`a[href="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href.split('?')[0] + '?id=' + product.id)}"]`);
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const qrSection = document.getElementById(`qrcode-${product.id}`);
+          qrSection.style.display = qrSection.style.display === 'none' ? 'block' : 'none';
+        });
+      });
+    }
+
+    async function showProductDetail(product) {
+      app.innerHTML = `
+        <div class="detail-header">
+          <div class="detail-title">
+            <h2>${product.name}</h2>
+            <span class="status ${product.testResult === '合格' ? 'pass' : 'fail'}">检测结果：${product.testResult}</span>
+          </div>
+          <a href="?" class="back-link">← 返回列表</a>
+        </div>
+        
+        <div class="section">
+          <h3>📋 基本信息</h3>
+          <div class="info-row"><div class="info-label">产品编号</div><div class="info-value">${product.id}</div></div>
+          <div class="info-row"><div class="info-label">生产批次</div><div class="info-value">${product.batch}</div></div>
+          <div class="info-row"><div class="info-label">产地</div><div class="info-value">${product.origin}</div></div>
+          <div class="info-row"><div class="info-label">生产日期</div><div class="info-value">${product.date}</div></div>
+          <div class="info-row"><div class="info-label">保质期</div><div class="info-value">${product.shelfLife}</div></div>
+          <div class="info-row"><div class="info-label">生产企业</div><div class="info-value">${product.producer}</div></div>
+        </div>
+        
+        <div class="section">
+          <h3>🔬 检测信息</h3>
+          <div class="info-row"><div class="info-label">检测机构</div><div class="info-value">${product.testOrg}</div></div>
+          <div class="info-row"><div class="info-label">检测结果</div><div class="info-value"><strong>${product.testResult}</strong></div></div>
+        </div>
+        
+        <div class="section">
+          <h3>📦 物流时间轴</h3>
+          <ul class="timeline">
+            ${product.logistics.map(item => `<li>${item}</li>`).join('')}
+          </ul>
+        </div>
+        
+        <div class="section">
+          <h3>✅ 溯源结论</h3>
+          <div class="conclusion">${product.conclusion}</div>
+        </div>
+        
+        <a href="?" class="home-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>返回产品列表</a>
+      `;
+    }
+
+    async function init() {
+      try {
+        const products = await loadProducts();
+        
+        if (!productId) {
+          showProductList(products);
+        } else {
+          const product = products.find(p => p.id === productId);
+          if (product) {
+            showProductDetail(product);
+          } else {
+            app.innerHTML = '<p class="error">未找到该产品信息</p><a href="?" class="home-link" style="display:block;text-align:center;margin-top:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>返回产品列表</a>';
+          }
+        }
+      } catch (error) {
+        app.innerHTML = '<p class="error">数据加载失败，请检查网络连接</p>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
